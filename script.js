@@ -69,13 +69,13 @@ function buildDom(fiber) {
 function render(element, container) {
   // Root fiber is created here
   wipRoot = {
-    dom: container,
+    dom: container, // DOM node reference
     props: {
       children: [element]
     }
   }
 
-  nextUnitOfWork = wipRoot
+  nextUnitOfWork = wipRoot // once nextUnitOfWork is not null, work starts
 }
 
 let nextUnitOfWork = null
@@ -102,6 +102,7 @@ function performUnitOfWork(fiber) {
   let prevSibling = null
 
   while (index < children.length) {
+    // create child fibers
     const element = children[index]
 
     const newFiber = {
@@ -124,8 +125,8 @@ function performUnitOfWork(fiber) {
   let nextFiber = fiber
   while (nextFiber) {
     if (nextFiber.sibling) return nextFiber.sibling
+    nextFiber = nextFiber.parent
   }
-  nextFiber = nextFiber.parent
 }
 
 requestIdleCallback(workLoop)
