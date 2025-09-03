@@ -41,6 +41,13 @@ function createTextElement(text) {
   }
 }
 
+function commitDeletion(fiber, domParent) {
+  const { dom, child } = fiber
+
+  if (dom) domParent.removeChild(dom)
+  else commitDeletion(child, domParent)
+}
+
 function commitRoot() {
   deletions.forEach(commitWork)
   commitWork(wipRoot.child)
@@ -52,16 +59,19 @@ function commitWork(fiber) {
   // commit phase
   if (!fiber) return
   const { effectTag, dom, alternate, props, parent, child, sibling } = fiber
-  const domParent = parent.dom
+
+  // find the parent
+  let domParentFiber = parent
+  while (!domParentFiber.dom) domParentFiber = domParentFiber.parent
+  const domParent = domParentFiber.dom
 
   // apply effects
-
   if (effectTag === EFFECTS.PLACEMENT && dom != null) {
     domParent.appendChild(dom)
   } else if (effectTag === EFFECTS.UPDATE && dom != null) {
     updateDom(dom, alternate.props, props)
   } else if (effectTag === EFFECTS.DELETION) {
-    domParent.removeChild(dom)
+    commitDeletion(child, domParent)
   }
 
   commitWork(child)
@@ -86,13 +96,16 @@ function buildDom(fiber) {
 }
 
 const isEvent = key => key.startsWith('on')
-const isProperty = key => key !== 'children' && isEvent(key)
+const isProperty = key => key !== 'children' && !isEvent(key)
 const isGone = (_, next) => key => !(key in next)
 const isNew = (prev, next) => key => prev[key] !== next[key]
 
 function updateDom(dom, prevProps, nextProps) {
+  const prevKeys = Object.keys(prevProps)
+  const nextKeys = Object.keys(nextProps)
+
   // Remove old or changed event listeners
-  Object.keys(prevProps)
+  prevKeys
     .filter(isEvent)
     .filter(key => {
       return !(key in nextProps) || isNew(prevProps, nextProps)(key)
@@ -103,7 +116,7 @@ function updateDom(dom, prevProps, nextProps) {
     })
 
   // Remove old properties
-  Object.keys(prevProps)
+  prevKeys
     .filter(isProperty)
     .filter(isGone(prevProps, nextProps))
     .forEach(name => {
@@ -111,7 +124,7 @@ function updateDom(dom, prevProps, nextProps) {
     })
 
   // Set new or updated properties
-  Object.keys(nextProps)
+  nextKeys
     .filter(isProperty)
     .filter(isNew(prevProps, nextProps))
     .forEach(name => {
@@ -119,7 +132,7 @@ function updateDom(dom, prevProps, nextProps) {
     })
 
   // Add event listeners
-  Object.keys(nextProps)
+  nextKeys
     .filter(isEvent)
     .filter(isNew(prevProps, nextProps))
     .forEach(name => {
@@ -149,6 +162,7 @@ let deletions = null
 
 function workLoop(deadline) {
   // Will yield to the browser if idle time remaining is less than 1ms
+  // render phase starts
   while (nextUnitOfWork && deadline.timeRemaining() > 1) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
   }
@@ -161,11 +175,11 @@ function workLoop(deadline) {
 requestIdleCallback(workLoop)
 
 function performUnitOfWork(fiber) {
-  // Add DOM node
-  if (!fiber.dom) fiber.dom = buildDom(fiber)
+  const isFunctionComponent = fiber.type instanceof Function
 
   // perform reconciliation
-  reconcileChildren(fiber, fiber.props.children)
+  if (isFunctionComponent) updateFunctionComponent(fiber)
+  else updateHostComponent(fiber)
 
   // return the next unit of work
   if (fiber.child) return fiber.child
@@ -175,6 +189,17 @@ function performUnitOfWork(fiber) {
     if (nextFiber.sibling) return nextFiber.sibling
     nextFiber = nextFiber.parent
   }
+}
+
+function updateFunctionComponent(fiber) {
+  // on function components, the children are result of the execution
+  const children = [fiber.type(fiber.props)] // fiber.type is the reference to the function
+  reconcileChildren(fiber, children)
+}
+
+function updateHostComponent(fiber) {
+  if (!fiber.dom) fiber.dom = buildDom(fiber)
+  reconcileChildren(fiber, fiber.props.children)
 }
 
 function reconcileChildren(wipFiber, elements) {
@@ -231,10 +256,14 @@ function reconcileChildren(wipFiber, elements) {
 /** @jsx Pipot.createElement */
 // The above line indicates babel to use Pipot.createElement to handle JSX
 
-const elementTry = (
-  <div>
-    <h1>hello!</h1>
-  </div>
-)
+function App({ name }) {
+  return (
+    <div>
+      <h1>hello! {name}</h1>
+    </div>
+  )
+}
 
-Pipot.render(elementTry, pipotRoot)
+const RootComponent = <App name={'Lazaro'} />
+
+Pipot.render(RootComponent, pipotRoot)
