@@ -1,4 +1,5 @@
-const pipotRoot = document.getElementById('pptroot')
+/** @jsx Pipot.createElement */
+// The above line indicates babel to use Pipot.createElement to handle JSX
 
 const ELEMENT_TYPES = {
   TEXT: 'TEXT_ELEMENT'
@@ -13,8 +14,16 @@ const EFFECTS = {
 // Top level API definition
 const Pipot = {
   createElement,
-  render
+  render,
+  useState
 }
+
+let nextUnitOfWork = null
+let wipRoot = null
+let currentRoot = null
+let deletions = null
+let wipFiber = null
+let hookIndex = null
 
 function createElement(type, props, ...children) {
   return {
@@ -59,8 +68,7 @@ function commitWork(fiber) {
   // commit phase
   if (!fiber) return
   const { effectTag, dom, alternate, props, parent, child, sibling } = fiber
-
-  // find the parent
+  // find the nearest parent
   let domParentFiber = parent
   while (!domParentFiber.dom) domParentFiber = domParentFiber.parent
   const domParent = domParentFiber.dom
@@ -89,7 +97,12 @@ function buildDom(fiber) {
   Object.keys(fiber.props)
     .filter(isProperty)
     .forEach(name => {
-      dom[name] = fiber.props[name] // if text, nodeValue will be set
+      if (isEvent(name)) {
+        const eventType = name.toLocaleLowerCase().substring(2)
+        dom.addEventListener(eventType, fiber.props[name])
+      } else {
+        dom[name] = fiber.props[name] // if text, nodeValue will be set
+      }
     })
 
   return dom
@@ -103,7 +116,6 @@ const isNew = (prev, next) => key => prev[key] !== next[key]
 function updateDom(dom, prevProps, nextProps) {
   const prevKeys = Object.keys(prevProps)
   const nextKeys = Object.keys(nextProps)
-
   // Remove old or changed event listeners
   prevKeys
     .filter(isEvent)
@@ -143,6 +155,7 @@ function updateDom(dom, prevProps, nextProps) {
 
 function render(element, container) {
   // Root fiber is created here
+  // debugger;
   wipRoot = {
     dom: container, // DOM node reference
     props: {
@@ -154,11 +167,6 @@ function render(element, container) {
   deletions = []
   nextUnitOfWork = wipRoot // once nextUnitOfWork is not null, work starts
 }
-
-let nextUnitOfWork = null
-let wipRoot = null
-let currentRoot = null
-let deletions = null
 
 function workLoop(deadline) {
   // Will yield to the browser if idle time remaining is less than 1ms
@@ -192,14 +200,18 @@ function performUnitOfWork(fiber) {
 }
 
 function updateFunctionComponent(fiber) {
+  wipFiber = fiber
+  hookIndex = 0
+  wipFiber.hooks = []
+
   // on function components, the children are result of the execution
   const children = [fiber.type(fiber.props)] // fiber.type is the reference to the function
-  reconcileChildren(fiber, children)
+  reconcileChildren(fiber, children.flat())
 }
 
 function updateHostComponent(fiber) {
   if (!fiber.dom) fiber.dom = buildDom(fiber)
-  reconcileChildren(fiber, fiber.props.children)
+  reconcileChildren(fiber, fiber.props.children.flat())
 }
 
 function reconcileChildren(wipFiber, elements) {
@@ -253,17 +265,72 @@ function reconcileChildren(wipFiber, elements) {
   }
 }
 
-/** @jsx Pipot.createElement */
-// The above line indicates babel to use Pipot.createElement to handle JSX
+function useState(initialState) {
+  // WIPFiber is the function component host of the state
+  const oldHook =
+    wipFiber.alternate &&
+    wipFiber.alternate.hooks &&
+    wipFiber.alternate.hooks[hookIndex]
+
+  const hook = {
+    state: oldHook ? oldHook.state : initialState,
+    queue: []
+  }
+
+  const actions = oldHook ? oldHook.queue : []
+  actions.forEach(action => (hook.state = action(hook.state)))
+
+  const setState = action => {
+    hook.queue.push(action)
+
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot
+    }
+
+    // trigger a new render phase
+    nextUnitOfWork = wipRoot
+    deletions = []
+  }
+
+  wipFiber.hooks.push(hook)
+  hookIndex++
+
+  return [hook.state, setState]
+}
+
+const listOfGroceries = [
+  'Milk',
+  'Sugar',
+  'Sour',
+  'Boeing CH-47 Chinook',
+  'Mil Mi-8/Mi-17 Hip'
+]
 
 function App({ name }) {
+  const [counter, setCounter] = Pipot.useState(0)
+
   return (
     <div>
       <h1>hello! {name}</h1>
+      <button
+        onClick={() => {
+          setCounter(prev => prev + 1)
+        }}
+      >
+        +
+      </button>
+      <h2>{counter}</h2>
+      <ul>
+        {listOfGroceries.map(gr => {
+          return <li>{gr}</li>
+        })}
+      </ul>
     </div>
   )
 }
 
-const RootComponent = <App name={'Lazaro'} />
-
+const RootComponent = <App name={'Person'} />
+const pipotRoot = document.getElementById('pptroot')
 Pipot.render(RootComponent, pipotRoot)
