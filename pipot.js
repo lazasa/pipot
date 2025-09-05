@@ -80,6 +80,7 @@ function commitWork(fiber) {
     updateDom(dom, alternate.props, props)
   } else if (effectTag === EFFECTS.DELETION) {
     commitDeletion(child, domParent)
+    return
   }
 
   commitWork(child)
@@ -278,8 +279,8 @@ function useState(initialState) {
   }
 
   const actions = oldHook ? oldHook.queue : []
-  actions.forEach(action => (hook.state = action(hook.state)))
 
+  actions.forEach(action => (hook.state = action(hook.state)))
   const setState = action => {
     hook.queue.push(action)
 
@@ -308,26 +309,42 @@ const listOfGroceries = [
   'Mil Mi-8/Mi-17 Hip'
 ]
 
+function Container({ children }) {
+  return (
+    <div id="container">
+      <h1>I'm inside container</h1>
+      {children}
+    </div>
+  )
+}
+
 function App({ name }) {
   const [counter, setCounter] = Pipot.useState(0)
+  const [isShown, setIsShown] = Pipot.useState(true)
 
   return (
-    <div>
-      <h1>hello! {name}</h1>
-      <button
-        onClick={() => {
-          setCounter(prev => prev + 1)
-        }}
-      >
-        +
+    <Container>
+      <div>
+        <h1>hello! {name}</h1>
+        <button
+          onClick={() => {
+            setCounter(prev => prev + 1)
+          }}
+        >
+          +
+        </button>
+        <h2>{counter}</h2>
+        <ul>
+          {listOfGroceries.map(gr => {
+            return <li>{gr}</li>
+          })}
+        </ul>
+      </div>
+      <button onClick={() => setIsShown(prev => !prev)}>
+        {isShown ? 'hide' : 'show'}
       </button>
-      <h2>{counter}</h2>
-      <ul>
-        {listOfGroceries.map(gr => {
-          return <li>{gr}</li>
-        })}
-      </ul>
-    </div>
+      {isShown ? <h2>Please, don't hide me!</h2> : <p></p>}
+    </Container>
   )
 }
 
