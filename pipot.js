@@ -51,10 +51,16 @@ function createTextElement(text) {
 }
 
 function commitDeletion(fiber, domParent) {
-  const { dom, child } = fiber
-
-  if (dom) domParent.removeChild(dom)
-  else commitDeletion(child, domParent)
+  if (fiber.dom) {
+    if (fiber.dom.parentNode === domParent) {
+      domParent.removeChild(fiber.dom)
+    }
+  } else if (fiber.child) {
+    commitDeletion(fiber.child, domParent)
+  }
+  if (fiber.sibling) {
+    commitDeletion(fiber.sibling, domParent)
+  }
 }
 
 function commitRoot() {
@@ -79,7 +85,7 @@ function commitWork(fiber) {
   } else if (effectTag === EFFECTS.UPDATE && dom != null) {
     updateDom(dom, alternate.props, props)
   } else if (effectTag === EFFECTS.DELETION) {
-    commitDeletion(child, domParent)
+    commitDeletion(fiber, domParent)
     return
   }
 
@@ -343,7 +349,7 @@ function App({ name }) {
       <button onClick={() => setIsShown(prev => !prev)}>
         {isShown ? 'hide' : 'show'}
       </button>
-      {isShown ? <h2>Please, don't hide me!</h2> : <p></p>}
+      {isShown ? <h2>Please, don't hide me!</h2> : <h2>Show me!</h2>}
     </Container>
   )
 }
