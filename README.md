@@ -11,7 +11,7 @@ This project is not intended for production use. Instead, it serves as a compila
 ## What You'll Find Inside
 
 - **`index.html`** – A basic HTML shell to load and run the project in the browser.
-- **`script.js`** – The heart of the project, showcasing:
+- **`pipot.js`** – The heart of the project, showcasing:
   - A simplified version of a **unit of work scheduler**, inspired by React Fiber.
   - A manually-implemented **DFS-like traversal** logic using linked nodes (akin to `child`, `sibling`, and `return` pointers).
   - A rudimentary mechanism to **reconcile** and **commit** DOM changes.
