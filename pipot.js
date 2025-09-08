@@ -8,14 +8,16 @@ const ELEMENT_TYPES = {
 const EFFECTS = {
   UPDATE: 'UPDATE',
   PLACEMENT: 'PLACEMENT',
-  DELETION: 'DELETION'
+  DELETION: 'DELETION',
+  EFFECT: 'EFFECT'
 }
 
 // Top level API definition
 const Pipot = {
   createElement,
   render,
-  useState
+  useState,
+  useEffect
 }
 
 let nextUnitOfWork = null
@@ -24,6 +26,7 @@ let currentRoot = null
 let deletions = null
 let wipFiber = null
 let hookIndex = null
+let pendingEffects = []
 
 function createElement(type, props, ...children) {
   return {
@@ -68,6 +71,9 @@ function commitRoot() {
   commitWork(wipRoot.child)
   currentRoot = wipRoot
   wipRoot = null
+  console.log('in Root, pending:', { pendingEffects })
+  pendingEffects.forEach(fn => fn())
+  pendingEffects = []
 }
 
 function commitWork(fiber) {
@@ -209,11 +215,26 @@ function performUnitOfWork(fiber) {
 function updateFunctionComponent(fiber) {
   wipFiber = fiber
   hookIndex = 0
-  wipFiber.hooks = []
+  wipFiber.hooks = [] // hooks of the current function component
+  const alternateFiber = wipFiber.alternate
 
   // on function components, the children are result of the execution
   const children = [fiber.type(fiber.props)] // fiber.type is the reference to the function
   reconcileChildren(fiber, children.flat())
+
+  wipFiber.hooks.forEach((hook, idx) => {
+    if (hook.effectTag === EFFECTS.EFFECT) {
+      const oldHook =
+        alternateFiber && alternateFiber.hooks && alternateFiber.hooks[idx]
+      const depsChanged =
+        !oldHook ||
+        hook.deps.length !== oldHook.deps.length ||
+        hook.deps.some((dep, i) => dep !== oldHook.deps[i])
+      if (depsChanged) {
+        pendingEffects.push(hook.fn)
+      }
+    }
+  })
 }
 
 function updateHostComponent(fiber) {
@@ -272,6 +293,17 @@ function reconcileChildren(wipFiber, elements) {
   }
 }
 
+function useEffect(fn, deps) {
+  const hook = {
+    effectTag: EFFECTS.EFFECT,
+    fn,
+    deps
+  }
+  console.log(hook, 'effect hook')
+  wipFiber.hooks.push(hook)
+  hookIndex++
+}
+
 function useState(initialState) {
   // WIPFiber is the function component host of the state
   const oldHook =
@@ -327,6 +359,10 @@ function Container({ children }) {
 function App({ name }) {
   const [counter, setCounter] = Pipot.useState(0)
   const [isShown, setIsShown] = Pipot.useState(true)
+
+  Pipot.useEffect(() => {
+    console.log('hello!')
+  }, [])
 
   return (
     <Container>
