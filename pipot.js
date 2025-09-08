@@ -100,7 +100,7 @@ function commitWork(fiber) {
 
 function buildDom(fiber) {
   const isText = fiber.type === ELEMENT_TYPES.TEXT
-  const isProperty = key => key !== 'children'
+  const isProperty = key => key !== 'children' && key !== 'style'
 
   const dom = isText
     ? document.createTextNode('')
@@ -117,17 +117,48 @@ function buildDom(fiber) {
       }
     })
 
+  if (fiber.props?.style) {
+    const styleObj = fiber.props.style || {}
+    Object.keys(styleObj).forEach(key => (dom.style[key] = styleObj[key]))
+  }
+
   return dom
 }
 
 const isEvent = key => key.startsWith('on')
-const isProperty = key => key !== 'children' && !isEvent(key)
+const isProperty = key => key !== 'children' && !isEvent(key) && key !== 'style'
 const isGone = (_, next) => key => !(key in next)
 const isNew = (prev, next) => key => prev[key] !== next[key]
 
 function updateDom(dom, prevProps, nextProps) {
   const prevKeys = Object.keys(prevProps)
   const nextKeys = Object.keys(nextProps)
+
+  // Handle styles
+  const prevStyle = prevProps?.style || {}
+  const nextStyle = nextProps?.style || {}
+
+  // Remove old styles not in new styles
+  Object.keys(prevStyle).forEach(key => {
+    if (!(key in nextStyle)) {
+      dom.style[key] = ''
+    }
+  })
+
+  // Set new styles
+  Object.keys(nextStyle).forEach(key => {
+    dom.style[key] = nextStyle[key]
+  })
+
+  // Remove style attribute if no styles left
+  if (
+    dom instanceof Element &&
+    Object.values(dom.style).filter(v => typeof v === 'string' && v.length > 0)
+      .length === 0
+  ) {
+    dom.removeAttribute('style')
+  }
+
   // Remove old or changed event listeners
   prevKeys
     .filter(isEvent)
@@ -147,7 +178,6 @@ function updateDom(dom, prevProps, nextProps) {
       dom[name] = ''
     })
 
-  // Set new or updated properties
   nextKeys
     .filter(isProperty)
     .filter(isNew(prevProps, nextProps))
@@ -377,7 +407,7 @@ function App({ name }) {
         >
           +
         </button>
-        <h2>{counter}</h2>
+        <h2 style={{ color: counter < 10 ? '#f00' : null }}>{counter}</h2>
         <ul>
           {listOfGroceries.map(gr => {
             return <li>{gr}</li>
