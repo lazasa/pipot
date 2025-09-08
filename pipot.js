@@ -71,7 +71,6 @@ function commitRoot() {
   commitWork(wipRoot.child)
   currentRoot = wipRoot
   wipRoot = null
-  console.log('in Root, pending:', { pendingEffects })
   pendingEffects.forEach(fn => fn())
   pendingEffects = []
 }
@@ -299,7 +298,6 @@ function useEffect(fn, deps) {
     fn,
     deps
   }
-  console.log(hook, 'effect hook')
   wipFiber.hooks.push(hook)
   hookIndex++
 }
@@ -361,8 +359,12 @@ function App({ name }) {
   const [isShown, setIsShown] = Pipot.useState(true)
 
   Pipot.useEffect(() => {
-    console.log('hello!')
+    console.log('Welcome to Pipot!')
   }, [])
+
+  Pipot.useEffect(() => {
+    console.log('Counter is now: ' + counter)
+  }, [counter])
 
   return (
     <Container>
